@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
 
   <style>
-    /* ── Design Tokens ──────────────────────────────────────────────────── */
+    /* ── Design Tokens ─────────────────────────────────────────────────── */
     :root {
       --bg-0:       #080c0a;
       --bg-1:       #0f1610;
@@ -40,6 +40,9 @@
       --radius-md: 8px;
       --radius-lg: 12px;
 
+      --sidebar-w: 220px;
+      --topbar-h:  56px;
+      --bottomnav-h: 60px;
       --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -56,9 +59,18 @@
       overflow-x: hidden;
     }
 
+    /* ── Sidebar overlay backdrop (mobile) ──────────────────────────────── */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 99;
+    }
+    .sidebar-backdrop.open { display: block; }
+
     /* ── Sidebar ─────────────────────────────────────────────────────────── */
     .sidebar {
-      width: 220px;
+      width: var(--sidebar-w);
       min-height: 100vh;
       background: var(--bg-1);
       border-right: 1px solid var(--border-dim);
@@ -67,6 +79,7 @@
       position: fixed;
       top: 0; left: 0;
       z-index: 100;
+      transition: transform var(--transition);
     }
 
     .sidebar-brand {
@@ -98,14 +111,9 @@
       margin-top: 3px;
     }
 
-    .sidebar-nav {
-      flex: 1;
-      padding: 16px 12px;
-    }
+    .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
 
-    .nav-section {
-      margin-bottom: 24px;
-    }
+    .nav-section { margin-bottom: 24px; }
 
     .nav-label {
       font-size: 0.6rem;
@@ -130,24 +138,15 @@
       position: relative;
     }
 
-    .nav-link:hover {
-      color: var(--text-0);
-      background: var(--bg-3);
-    }
-
-    .nav-link.active {
-      color: var(--green);
-      background: var(--green-dim);
-    }
+    .nav-link:hover  { color: var(--text-0); background: var(--bg-3); }
+    .nav-link.active { color: var(--green);  background: var(--green-dim); }
 
     .nav-link.active::before {
       content: '';
       position: absolute;
-      left: -12px;
-      top: 50%;
+      left: -12px; top: 50%;
       transform: translateY(-50%);
-      width: 3px;
-      height: 60%;
+      width: 3px; height: 60%;
       background: var(--green);
       border-radius: 0 2px 2px 0;
     }
@@ -158,15 +157,11 @@
       padding: 16px 20px;
       border-top: 1px solid var(--border-dim);
     }
-
-    .version-tag {
-      font-size: 0.65rem;
-      color: var(--text-3);
-    }
+    .version-tag { font-size: 0.65rem; color: var(--text-3); }
 
     /* ── Main Content ────────────────────────────────────────────────────── */
     .main-wrap {
-      margin-left: 220px;
+      margin-left: var(--sidebar-w);
       flex: 1;
       min-height: 100vh;
       display: flex;
@@ -174,16 +169,38 @@
     }
 
     .topbar {
-      height: 56px;
+      height: var(--topbar-h);
       background: var(--bg-1);
       border-bottom: 1px solid var(--border-dim);
       display: flex;
       align-items: center;
-      padding: 0 32px;
-      gap: 16px;
+      padding: 0 24px;
+      gap: 12px;
       position: sticky;
       top: 0;
       z-index: 50;
+    }
+
+    /* Hamburger — hidden on desktop */
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      width: 36px; height: 36px;
+      padding: 6px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+    .hamburger:hover { background: var(--bg-3); }
+    .hamburger span {
+      display: block; height: 2px;
+      background: var(--text-1);
+      border-radius: 2px;
+      transition: all var(--transition);
     }
 
     .topbar-title {
@@ -192,6 +209,9 @@
       font-style: italic;
       color: var(--text-0);
       flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .topbar-badge {
@@ -202,6 +222,24 @@
       color: var(--green);
       letter-spacing: 0.08em;
       border: 1px solid #4ade8033;
+      flex-shrink: 0;
+    }
+
+    /* Upload quick-action in topbar */
+    .topbar-upload {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid #4ade8044;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      cursor: pointer;
+      text-decoration: none;
+      flex-shrink: 0;
     }
 
     .page-content {
@@ -210,6 +248,68 @@
       max-width: 1200px;
       width: 100%;
     }
+
+    /* ── Bottom Nav (mobile only) ────────────────────────────────────────── */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--bottomnav-h);
+      background: var(--bg-1);
+      border-top: 1px solid var(--border-dim);
+      z-index: 90;
+      padding: 0 4px;
+    }
+
+    .bottom-nav-inner {
+      display: flex;
+      height: 100%;
+      align-items: stretch;
+    }
+
+    .bottom-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      text-decoration: none;
+      color: var(--text-2);
+      font-size: 0.58rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: color var(--transition);
+      border-radius: var(--radius-sm);
+      padding: 6px 2px;
+    }
+
+    .bottom-nav-item.active  { color: var(--green); }
+    .bottom-nav-item:hover   { color: var(--text-0); }
+
+    .bottom-nav-icon { font-size: 1.3rem; line-height: 1; }
+
+    /* Upload FAB on mobile */
+    .upload-fab {
+      display: none;
+      position: fixed;
+      bottom: calc(var(--bottomnav-h) + 16px);
+      right: 16px;
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #000;
+      font-size: 1.4rem;
+      border: none;
+      cursor: pointer;
+      z-index: 89;
+      box-shadow: 0 4px 20px #4ade8044;
+      transition: transform var(--transition), box-shadow var(--transition);
+      text-decoration: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .upload-fab:active { transform: scale(0.92); }
 
     /* ── Cards ───────────────────────────────────────────────────────────── */
     .card {
@@ -240,8 +340,8 @@
     /* ── Stat Cards ──────────────────────────────────────────────────────── */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
       margin-bottom: 28px;
     }
 
@@ -249,17 +349,14 @@
       background: var(--bg-card);
       border: 1px solid var(--border-dim);
       border-radius: var(--radius-lg);
-      padding: 20px;
+      padding: 18px;
       position: relative;
       overflow: hidden;
       transition: border-color var(--transition), transform var(--transition);
       animation: fadeUp 0.4s ease both;
     }
 
-    .stat-card:hover {
-      border-color: var(--border);
-      transform: translateY(-2px);
-    }
+    .stat-card:hover  { border-color: var(--border); transform: translateY(-2px); }
 
     .stat-card::after {
       content: '';
@@ -270,29 +367,10 @@
       opacity: 0.6;
     }
 
-    .stat-icon { font-size: 1.5rem; margin-bottom: 10px; display: block; }
-
-    .stat-value {
-      font-family: var(--font-serif);
-      font-size: 2.2rem;
-      font-weight: 700;
-      color: var(--text-0);
-      line-height: 1;
-      margin-bottom: 4px;
-    }
-
-    .stat-label {
-      font-size: 0.7rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--text-2);
-    }
-
-    .stat-sub {
-      font-size: 0.7rem;
-      color: var(--text-3);
-      margin-top: 4px;
-    }
+    .stat-icon  { font-size: 1.5rem; margin-bottom: 10px; display: block; }
+    .stat-value { font-family: var(--font-serif); font-size: 2.2rem; font-weight: 700; color: var(--text-0); line-height: 1; margin-bottom: 4px; }
+    .stat-label { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); }
+    .stat-sub   { font-size: 0.7rem; color: var(--text-3); margin-top: 4px; }
 
     /* ── Buttons ─────────────────────────────────────────────────────────── */
     .btn {
@@ -309,59 +387,27 @@
       border: 1px solid transparent;
       text-decoration: none;
       letter-spacing: 0.04em;
+      white-space: nowrap;
     }
 
-    .btn-primary {
-      background: var(--green-dim);
-      color: var(--green);
-      border-color: #4ade8044;
-    }
-    .btn-primary:hover {
-      background: #4ade8022;
-      border-color: var(--green);
-      box-shadow: 0 0 16px #4ade8022;
-    }
+    .btn-primary { background: var(--green-dim); color: var(--green); border-color: #4ade8044; }
+    .btn-primary:hover { background: #4ade8022; border-color: var(--green); box-shadow: 0 0 16px #4ade8022; }
 
-    .btn-amber {
-      background: var(--amber-dim);
-      color: var(--amber);
-      border-color: #f59e0b44;
-    }
-    .btn-amber:hover {
-      background: #f59e0b22;
-      border-color: var(--amber);
-    }
+    .btn-amber { background: var(--amber-dim); color: var(--amber); border-color: #f59e0b44; }
+    .btn-amber:hover { background: #f59e0b22; border-color: var(--amber); }
 
-    .btn-ghost {
-      background: transparent;
-      color: var(--text-1);
-      border-color: var(--border);
-    }
-    .btn-ghost:hover {
-      background: var(--bg-3);
-      color: var(--text-0);
-    }
+    .btn-ghost { background: transparent; color: var(--text-1); border-color: var(--border); }
+    .btn-ghost:hover { background: var(--bg-3); color: var(--text-0); }
 
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── Table ───────────────────────────────────────────────────────────── */
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.78rem;
-    }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
 
     .data-table th {
-      text-align: left;
-      padding: 10px 14px;
-      font-size: 0.62rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--text-2);
-      border-bottom: 1px solid var(--border-dim);
+      text-align: left; padding: 10px 14px;
+      font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-2); border-bottom: 1px solid var(--border-dim);
       white-space: nowrap;
     }
 
@@ -373,33 +419,20 @@
     }
 
     .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--bg-2); color: var(--text-0); }
 
-    .data-table tr:hover td {
-      background: var(--bg-2);
-      color: var(--text-0);
-    }
-
-    /* ── Category Badge ──────────────────────────────────────────────────── */
+    /* ── Badges ──────────────────────────────────────────────────────────── */
     .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      font-size: 0.65rem;
-      font-weight: 500;
-      letter-spacing: 0.05em;
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 20px;
+      font-size: 0.65rem; font-weight: 500; letter-spacing: 0.05em;
     }
 
-    .badge-insect { background: var(--amber-dim); color: var(--amber); border: 1px solid #f59e0b33; }
-    .badge-flora  { background: var(--green-dim);  color: var(--green);  border: 1px solid #4ade8033; }
-    .badge-fungus { background: var(--purple-dim); color: var(--purple); border: 1px solid #c084fc33; }
+    .badge-insect { background: var(--amber-dim);  color: var(--amber);  border: 1px solid #f59e0b33; }
+    .badge-flora  { background: var(--green-dim);   color: var(--green);  border: 1px solid #4ade8033; }
+    .badge-fungus { background: var(--purple-dim);  color: var(--purple); border: 1px solid #c084fc33; }
 
-    .status-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      display: inline-block;
-    }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
     .status-success { background: var(--green); }
     .status-failed  { background: var(--red); }
     .status-partial { background: var(--amber); }
@@ -417,118 +450,109 @@
 
     .animate-pulse { animation: pulse-glow 2s ease-in-out infinite; }
 
-    /* ── Log Terminal ─────────────────────────────────────────────────────── */
+    /* ── Terminal ────────────────────────────────────────────────────────── */
     .terminal {
-      background: #050806;
-      border: 1px solid var(--border-dim);
-      border-radius: var(--radius-md);
-      padding: 16px;
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      color: #6fcf6f;
-      line-height: 1.7;
-      height: 360px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
+      background: #050806; border: 1px solid var(--border-dim);
+      border-radius: var(--radius-md); padding: 16px;
+      font-family: var(--font-mono); font-size: 0.72rem;
+      color: #6fcf6f; line-height: 1.7;
+      height: 360px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-all;
     }
 
     .terminal::-webkit-scrollbar { width: 4px; }
     .terminal::-webkit-scrollbar-track { background: transparent; }
     .terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-    .log-line { display: block; }
+    .log-line  { display: block; }
     .log-error { color: #f87171; }
     .log-done  { color: var(--green); font-weight: 500; }
     .log-info  { color: #6fcf6f; }
 
     /* ── Filter Tabs ─────────────────────────────────────────────────────── */
-    .filter-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
+    .filter-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 
     .filter-tab {
-      padding: 7px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 0.75rem;
-      cursor: pointer;
-      transition: all var(--transition);
-      text-decoration: none;
-      border: 1px solid var(--border-dim);
-      color: var(--text-1);
-      background: transparent;
+      padding: 7px 16px; border-radius: var(--radius-sm);
+      font-size: 0.75rem; cursor: pointer;
+      transition: all var(--transition); text-decoration: none;
+      border: 1px solid var(--border-dim); color: var(--text-1); background: transparent;
     }
 
-    .filter-tab:hover { border-color: var(--border); color: var(--text-0); background: var(--bg-2); }
+    .filter-tab:hover  { border-color: var(--border); color: var(--text-0); background: var(--bg-2); }
     .filter-tab.active { color: var(--green); background: var(--green-dim); border-color: #4ade8044; }
 
-    /* ── Section header ──────────────────────────────────────────────────── */
-    .section-heading {
-      font-family: var(--font-serif);
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: var(--text-0);
-      margin-bottom: 6px;
-    }
-
-    .section-sub {
-      font-size: 0.75rem;
-      color: var(--text-2);
-      margin-bottom: 24px;
-    }
+    /* ── Section ─────────────────────────────────────────────────────────── */
+    .section-heading { font-family: var(--font-serif); font-size: 1.4rem; font-weight: 700; color: var(--text-0); margin-bottom: 6px; }
+    .section-sub     { font-size: 0.75rem; color: var(--text-2); margin-bottom: 24px; }
 
     /* ── Empty state ─────────────────────────────────────────────────────── */
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-2);
-    }
-
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-2); }
     .empty-state-icon { font-size: 3rem; display: block; margin-bottom: 12px; opacity: 0.5; }
     .empty-state-text { font-size: 0.85rem; }
 
-    /* ── Utility ─────────────────────────────────────────────────────────── */
-    .flex { display: flex; }
-    .items-center { align-items: center; }
-    .justify-between { justify-content: space-between; }
+    /* ── Utilities ───────────────────────────────────────────────────────── */
+    .flex             { display: flex; }
+    .items-center     { align-items: center; }
+    .justify-between  { justify-content: space-between; }
     .gap-2 { gap: 8px; }
     .gap-3 { gap: 12px; }
     .gap-4 { gap: 16px; }
-    .mb-4 { margin-bottom: 16px; }
-    .mb-6 { margin-bottom: 24px; }
-    .text-green { color: var(--green); }
-    .text-amber { color: var(--amber); }
+    .mb-4  { margin-bottom: 16px; }
+    .mb-6  { margin-bottom: 24px; }
+    .text-green  { color: var(--green); }
+    .text-amber  { color: var(--amber); }
     .text-purple { color: var(--purple); }
-    .text-dim { color: var(--text-2); }
-    .text-mono { font-family: var(--font-mono); }
-    .text-serif { font-family: var(--font-serif); }
+    .text-dim    { color: var(--text-2); }
+    .text-mono   { font-family: var(--font-mono); }
+    .text-serif  { font-family: var(--font-serif); }
 
-    /* ── GPS tag ─────────────────────────────────────────────────────────── */
     .gps-tag {
-      font-size: 0.65rem;
-      color: var(--text-3);
-      background: var(--bg-2);
-      padding: 2px 6px;
+      font-size: 0.65rem; color: var(--text-3);
+      background: var(--bg-2); padding: 2px 6px;
       border-radius: var(--radius-sm);
     }
 
-    /* ── Progress bar ────────────────────────────────────────────────────── */
-    .progress-bar {
-      height: 3px;
-      background: var(--border-dim);
-      border-radius: 2px;
-      overflow: hidden;
-      margin-top: 8px;
+    .progress-bar  { height: 3px; background: var(--border-dim); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--fill-color, var(--green)) 0%, transparent 100%); border-radius: 2px; transition: width 0.6s ease; }
+
+    /* ── Tablet breakpoint (768px) ───────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+      .sidebar.mobile-open {
+        transform: translateX(0);
+        box-shadow: 4px 0 32px rgba(0,0,0,0.5);
+      }
+      .main-wrap {
+        margin-left: 0;
+      }
+      .hamburger {
+        display: flex;
+      }
+      .topbar {
+        padding: 0 16px;
+      }
+      .topbar-upload {
+        display: flex;
+      }
+      .page-content {
+        padding: 20px 16px 80px; /* bottom padding for bottom nav */
+      }
+      .bottom-nav  { display: flex; }
+      .upload-fab  { display: flex; }
     }
 
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--fill-color, var(--green)) 0%, transparent 100%);
-      border-radius: 2px;
-      transition: width 0.6s ease;
+    /* ── Phone breakpoint (480px) ────────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .stat-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .stat-value { font-size: 1.7rem; }
+      .section-heading { font-size: 1.1rem; }
+      .topbar-badge { display: none; }
     }
   </style>
 
@@ -536,8 +560,11 @@
 </head>
 <body>
 
-  <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
-  <aside class="sidebar">
+  <!-- Sidebar backdrop (mobile) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       <span class="brand-icon">🌿</span>
       <div class="brand-title">BioField</div>
@@ -547,27 +574,30 @@
     <nav class="sidebar-nav">
       <div class="nav-section">
         <div class="nav-label">Overview</div>
-        <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+        <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}" onclick="closeSidebar()">
           <span class="nav-icon">◼</span> Dashboard
         </a>
-        <a href="/map" class="nav-link {% if request.path == '/map' %}active{% endif %}">
+        <a href="/map" class="nav-link {% if request.path == '/map' %}active{% endif %}" onclick="closeSidebar()">
           <span class="nav-icon">◎</span> Field Map
         </a>
-        <a href="/analytics" class="nav-link {% if request.path == '/analytics' %}active{% endif %}">
+        <a href="/analytics" class="nav-link {% if request.path == '/analytics' %}active{% endif %}" onclick="closeSidebar()">
           <span class="nav-icon">◈</span> Analytics
         </a>
       </div>
 
       <div class="nav-section">
         <div class="nav-label">Data</div>
-        <a href="/observations" class="nav-link {% if request.path == '/observations' %}active{% endif %}">
+        <a href="/observations" class="nav-link {% if request.path == '/observations' %}active{% endif %}" onclick="closeSidebar()">
           <span class="nav-icon">≡</span> Observations
+        </a>
+        <a href="/upload" class="nav-link {% if request.path == '/upload' %}active{% endif %}" onclick="closeSidebar()" style="color: var(--green);">
+          <span class="nav-icon">↑</span> Upload Images
         </a>
       </div>
 
       <div class="nav-section">
         <div class="nav-label">Tools</div>
-        <a href="/pipeline" class="nav-link {% if request.path == '/pipeline' %}active{% endif %}">
+        <a href="/pipeline" class="nav-link {% if request.path == '/pipeline' %}active{% endif %}" onclick="closeSidebar()">
           <span class="nav-icon">▷</span> Pipeline
         </a>
       </div>
@@ -575,7 +605,7 @@
       <div class="nav-section">
         <div class="nav-label">Categories</div>
         {% for cat, cfg in categories.items() %}
-        <a href="/observations?category={{ cat }}" class="nav-link">
+        <a href="/observations?category={{ cat }}" class="nav-link" onclick="closeSidebar()">
           <span class="nav-icon">{{ cfg.icon }}</span> {{ cfg.label }}
         </a>
         {% endfor %}
@@ -583,15 +613,26 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="version-tag">v2.0 · Feb 2026</div>
+      <div class="version-tag">v3.0 · 2026</div>
       <div class="version-tag" style="margin-top:2px;">Dr. Hakim Mitiche</div>
     </div>
   </aside>
 
-  <!-- ── Main ──────────────────────────────────────────────────────────── -->
+  <!-- ── Main ──────────────────────────────────────────────────────────────── -->
   <div class="main-wrap">
     <header class="topbar">
-      <span class="topbar-title">{% block page_title %}Field Observation System{% endblock %}</span>
+      <!-- Hamburger (mobile only) -->
+      <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <span class="topbar-title">{% block page_title %}BioField{% endblock %}</span>
+
+      <!-- Quick upload link shown on mobile topbar -->
+      <a href="/upload" class="topbar-upload" aria-label="Upload images">
+        <span>↑</span> Upload
+      </a>
+
       <span class="topbar-badge">● LIVE</span>
     </header>
 
@@ -599,6 +640,44 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+
+  <!-- ── Bottom Nav (mobile) ───────────────────────────────────────────────── -->
+  <nav class="bottom-nav" aria-label="Bottom navigation">
+    <div class="bottom-nav-inner">
+      <a href="/"            class="bottom-nav-item {% if request.path == '/' %}active{% endif %}">
+        <span class="bottom-nav-icon">◼</span> Home
+      </a>
+      <a href="/observations" class="bottom-nav-item {% if request.path == '/observations' %}active{% endif %}">
+        <span class="bottom-nav-icon">≡</span> Data
+      </a>
+      <a href="/upload"      class="bottom-nav-item {% if request.path == '/upload' %}active{% endif %}" style="color: var(--green);">
+        <span class="bottom-nav-icon">↑</span> Upload
+      </a>
+      <a href="/map"         class="bottom-nav-item {% if request.path == '/map' %}active{% endif %}">
+        <span class="bottom-nav-icon">◎</span> Map
+      </a>
+      <a href="/pipeline"    class="bottom-nav-item {% if request.path == '/pipeline' %}active{% endif %}">
+        <span class="bottom-nav-icon">▷</span> Pipeline
+      </a>
+    </div>
+  </nav>
+
+  <!-- FAB upload button (mobile) -->
+  <a href="/upload" class="upload-fab" aria-label="Upload images">↑</a>
+
+  <script>
+    function toggleSidebar() {
+      const s = document.getElementById('sidebar');
+      const b = document.getElementById('sidebarBackdrop');
+      s.classList.toggle('mobile-open');
+      b.classList.toggle('open');
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('mobile-open');
+      document.getElementById('sidebarBackdrop').classList.remove('open');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>

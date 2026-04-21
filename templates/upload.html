@@ -1,0 +1,560 @@
+{% extends "base.html" %}
+{% block title %}Upload Images{% endblock %}
+{% block page_title %}Upload Images{% endblock %}
+
+{% block extra_styles %}
+<style>
+  /* ── Category Selector ─────────────────────────────────────────────── */
+  .cat-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .cat-card {
+    background: var(--bg-card);
+    border: 2px solid var(--border-dim);
+    border-radius: var(--radius-lg);
+    padding: 20px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    user-select: none;
+  }
+
+  .cat-card:hover { border-color: var(--border); background: var(--bg-2); }
+
+  .cat-card.selected {
+    border-color: var(--cat-color, var(--green));
+    background: var(--cat-bg, var(--green-dim));
+    box-shadow: 0 0 0 1px var(--cat-color, var(--green));
+  }
+
+  .cat-card-icon { font-size: 2.2rem; display: block; margin-bottom: 8px; }
+  .cat-card-name { font-size: 0.8rem; font-weight: 500; color: var(--text-0); }
+  .cat-card-count { font-size: 0.65rem; color: var(--text-3); margin-top: 3px; }
+
+  /* ── Drop Zone ─────────────────────────────────────────────────────── */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--bg-card);
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--green);
+    background: var(--green-dim);
+  }
+
+  .drop-zone-icon { font-size: 3rem; display: block; margin-bottom: 12px; }
+  .drop-zone-title { font-family: var(--font-serif); font-size: 1.1rem; color: var(--text-0); margin-bottom: 6px; }
+  .drop-zone-sub { font-size: 0.78rem; color: var(--text-2); }
+
+  /* ── Action Buttons ────────────────────────────────────────────────── */
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 22px 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-dim);
+    background: var(--bg-card);
+    cursor: pointer;
+    transition: all var(--transition);
+    font-family: var(--font-mono);
+  }
+
+  .action-btn:hover { border-color: var(--border); background: var(--bg-2); }
+
+  .action-btn-icon { font-size: 2rem; }
+  .action-btn-label { font-size: 0.8rem; color: var(--text-0); font-weight: 500; }
+  .action-btn-sub   { font-size: 0.68rem; color: var(--text-2); }
+
+  .action-btn.camera-btn { border-color: #4ade8044; }
+  .action-btn.camera-btn:hover { background: var(--green-dim); border-color: var(--green); }
+
+  /* ── Preview Grid ──────────────────────────────────────────────────── */
+  .preview-section { margin-top: 24px; }
+  .preview-header  {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .preview-title  { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); }
+  .preview-count  { font-size: 0.72rem; color: var(--text-3); }
+
+  .preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+  }
+
+  .preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-2);
+    border: 1px solid var(--border-dim);
+  }
+
+  .preview-item img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .preview-item-name {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.75);
+    font-size: 0.6rem;
+    color: var(--text-1);
+    padding: 4px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .preview-remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px;
+    background: rgba(0,0,0,0.7);
+    border: none; border-radius: 50%;
+    color: var(--text-1);
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--transition);
+    line-height: 1;
+  }
+  .preview-remove:hover { background: var(--red); color: #fff; }
+
+  .preview-status {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    background: rgba(0,0,0,0.6);
+    opacity: 0;
+    transition: opacity var(--transition);
+  }
+  .preview-item.uploading .preview-status { opacity: 1; }
+  .preview-item.done      .preview-status { opacity: 1; }
+  .preview-item.error     .preview-status { opacity: 1; }
+
+  /* ── Progress + Status ─────────────────────────────────────────────── */
+  .upload-progress {
+    margin-top: 20px;
+    display: none;
+  }
+
+  .upload-progress.visible { display: block; }
+
+  .progress-track {
+    height: 6px;
+    background: var(--border-dim);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  .upload-status-text { font-size: 0.75rem; color: var(--text-2); }
+
+  .upload-result-box {
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.78rem;
+    display: none;
+  }
+  .upload-result-box.success { background: #4ade8011; border: 1px solid #4ade8033; color: var(--green); display: block; }
+  .upload-result-box.error   { background: #f8717111; border: 1px solid #f8717133; color: var(--red);   display: block; }
+
+  /* ── Submit Button ─────────────────────────────────────────────────── */
+  .submit-row {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn-upload {
+    flex: 1;
+    justify-content: center;
+    padding: 14px;
+    font-size: 0.9rem;
+  }
+
+  /* ── Tips box ──────────────────────────────────────────────────────── */
+  .tips-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-dim);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    margin-top: 24px;
+  }
+
+  .tips-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    margin-bottom: 10px;
+  }
+
+  .tips-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .tips-list li {
+    font-size: 0.76rem;
+    color: var(--text-2);
+    display: flex;
+    gap: 8px;
+  }
+
+  .tips-list li::before {
+    content: '→';
+    color: var(--text-3);
+    flex-shrink: 0;
+  }
+
+  /* ── Mobile overrides ──────────────────────────────────────────────── */
+  @media (max-width: 480px) {
+    .cat-cards       { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .cat-card        { padding: 14px 6px; }
+    .cat-card-icon   { font-size: 1.8rem; margin-bottom: 4px; }
+    .cat-card-name   { font-size: 0.72rem; }
+    .action-row      { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .action-btn      { padding: 18px 10px; }
+    .action-btn-icon { font-size: 1.6rem; }
+    .drop-zone       { padding: 32px 16px; }
+    .preview-grid    { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
+    .btn-upload      { padding: 16px; font-size: 1rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div style="margin-bottom: 20px;">
+  <h2 class="section-heading">Upload Images</h2>
+  <p class="section-sub" style="margin-bottom:0">
+    Add field photos to the right category — they'll be processed next time you run the pipeline.
+  </p>
+</div>
+
+<!-- Step 1: Category -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header">
+    <span class="card-title">Step 1 — Choose category</span>
+  </div>
+  <div class="card-body">
+    <div class="cat-cards" id="catCards">
+      {% for cat, cfg in categories.items() %}
+      <div class="cat-card {% if loop.first %}selected{% endif %}"
+           data-cat="{{ cat }}"
+           data-color="{{ cfg.color }}"
+           data-bg="{{ cfg.color }}22"
+           style="{% if loop.first %}--cat-color:{{ cfg.color }};--cat-bg:{{ cfg.color }}22;{% endif %}"
+           onclick="selectCat(this)">
+        <span class="cat-card-icon">{{ cfg.icon }}</span>
+        <div class="cat-card-name">{{ cfg.label }}</div>
+        <div class="cat-card-count">{{ cfg.images_on_disk }} on disk</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: Add images -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header">
+    <span class="card-title">Step 2 — Add images</span>
+    <span id="selectedCountBadge" style="font-size:0.68rem;color:var(--text-3)">0 selected</span>
+  </div>
+  <div class="card-body">
+
+    <!-- Camera + File buttons (large, touch-friendly) -->
+    <div class="action-row" style="margin-bottom:16px">
+      <button class="action-btn camera-btn" onclick="document.getElementById('cameraInput').click()">
+        <span class="action-btn-icon">📷</span>
+        <span class="action-btn-label">Take Photo</span>
+        <span class="action-btn-sub">Use camera</span>
+      </button>
+      <button class="action-btn" onclick="document.getElementById('fileInput').click()">
+        <span class="action-btn-icon">🖼️</span>
+        <span class="action-btn-label">Browse Files</span>
+        <span class="action-btn-sub">Gallery / folder</span>
+      </button>
+    </div>
+
+    <!-- Hidden inputs -->
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" multiple style="display:none" onchange="addFiles(this.files)" />
+    <input type="file" id="fileInput"   accept=".jpg,.jpeg,.png,.webp" multiple style="display:none" onchange="addFiles(this.files)" />
+
+    <!-- Drop Zone (desktop) -->
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <span class="drop-zone-icon">📂</span>
+      <div class="drop-zone-title">Drag & drop images here</div>
+      <div class="drop-zone-sub">.jpg · .jpeg · .png · .webp · max 50 MB per file</div>
+    </div>
+
+    <!-- Preview Grid -->
+    <div class="preview-section" id="previewSection" style="display:none">
+      <div class="preview-header">
+        <span class="preview-title">Preview</span>
+        <div class="flex gap-2">
+          <span class="preview-count" id="previewCount"></span>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:0.68rem" onclick="clearAll()">Clear all</button>
+        </div>
+      </div>
+      <div class="preview-grid" id="previewGrid"></div>
+    </div>
+
+    <!-- Progress -->
+    <div class="upload-progress" id="uploadProgress">
+      <div class="progress-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div class="upload-status-text" id="statusText">Preparing…</div>
+    </div>
+
+    <!-- Result -->
+    <div class="upload-result-box" id="resultBox"></div>
+
+    <!-- Submit -->
+    <div class="submit-row">
+      <button class="btn btn-primary btn-upload" id="uploadBtn" onclick="doUpload()">
+        ↑ Upload to BioField
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Tips -->
+<div class="tips-box">
+  <div class="tips-title">Tips for best results</div>
+  <ul class="tips-list">
+    <li>Make sure GPS is enabled on your phone before taking field photos — the pipeline extracts coordinates from EXIF data.</li>
+    <li>Take photos in good lighting. The AI identifies species from the image content, so clarity matters.</li>
+    <li>One organism per photo gives the best identification accuracy.</li>
+    <li>After uploading, go to <a href="/pipeline" style="color:var(--green)">Pipeline</a> and run extraction to process the new images.</li>
+    <li>Supported formats: JPEG, PNG, WebP. Max 50 MB per file.</li>
+  </ul>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ── State ──────────────────────────────────────────────────────────────
+  let selectedCat  = '{{ categories.keys()|list|first }}';
+  let pendingFiles = new Map(); // name → File
+  let fileIdSeq    = 0;
+
+  // ── Category selection ─────────────────────────────────────────────────
+  function selectCat(card) {
+    document.querySelectorAll('.cat-card').forEach(c => {
+      c.classList.remove('selected');
+      c.style.removeProperty('--cat-color');
+      c.style.removeProperty('--cat-bg');
+    });
+    card.classList.add('selected');
+    card.style.setProperty('--cat-color', card.dataset.color);
+    card.style.setProperty('--cat-bg',    card.dataset.color + '22');
+    selectedCat = card.dataset.cat;
+  }
+
+  // ── File handling ──────────────────────────────────────────────────────
+  const ALLOWED = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+
+  function addFiles(files) {
+    for (const f of files) {
+      const ext = '.' + f.name.split('.').pop().toLowerCase();
+      if (!ALLOWED.has(ext)) continue;
+      if (!pendingFiles.has(f.name)) {
+        pendingFiles.set(f.name, { file: f, id: ++fileIdSeq, state: 'pending' });
+        addPreviewItem(f, fileIdSeq);
+      }
+    }
+    refreshCount();
+  }
+
+  function addPreviewItem(file, id) {
+    const section = document.getElementById('previewSection');
+    const grid    = document.getElementById('previewGrid');
+    section.style.display = 'block';
+
+    const item = document.createElement('div');
+    item.className  = 'preview-item';
+    item.id         = 'prev-' + id;
+    item.dataset.name = file.name;
+
+    const img = document.createElement('img');
+    img.alt  = file.name;
+    const url = URL.createObjectURL(file);
+    img.src  = url;
+    img.onload = () => URL.revokeObjectURL(url);
+
+    const name = document.createElement('div');
+    name.className   = 'preview-item-name';
+    name.textContent = file.name;
+
+    const statusEl = document.createElement('div');
+    statusEl.className = 'preview-status';
+    statusEl.id        = 'status-' + id;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className   = 'preview-remove';
+    removeBtn.textContent = '✕';
+    removeBtn.onclick = () => removeFile(file.name);
+
+    item.appendChild(img);
+    item.appendChild(name);
+    item.appendChild(statusEl);
+    item.appendChild(removeBtn);
+    grid.appendChild(item);
+  }
+
+  function removeFile(name) {
+    const entry = pendingFiles.get(name);
+    if (!entry) return;
+    pendingFiles.delete(name);
+    const el = document.getElementById('prev-' + entry.id);
+    if (el) el.remove();
+    if (pendingFiles.size === 0) document.getElementById('previewSection').style.display = 'none';
+    refreshCount();
+  }
+
+  function clearAll() {
+    pendingFiles.clear();
+    document.getElementById('previewGrid').innerHTML = '';
+    document.getElementById('previewSection').style.display = 'none';
+    document.getElementById('resultBox').className = 'upload-result-box';
+    refreshCount();
+  }
+
+  function refreshCount() {
+    const n = pendingFiles.size;
+    document.getElementById('selectedCountBadge').textContent = n + ' selected';
+    document.getElementById('previewCount').textContent       = n + ' image' + (n !== 1 ? 's' : '');
+  }
+
+  // ── Drag & drop ────────────────────────────────────────────────────────
+  const zone = document.getElementById('dropZone');
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', ()  => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    addFiles(e.dataTransfer.files);
+  });
+
+  // ── Upload ─────────────────────────────────────────────────────────────
+  async function doUpload() {
+    if (pendingFiles.size === 0) {
+      showResult('error', 'No images selected. Please add at least one image.');
+      return;
+    }
+
+    const btn = document.getElementById('uploadBtn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+
+    const progress = document.getElementById('uploadProgress');
+    const fill     = document.getElementById('progressFill');
+    const status   = document.getElementById('statusText');
+    progress.classList.add('visible');
+
+    // Mark all as uploading
+    for (const [, entry] of pendingFiles) {
+      const item = document.getElementById('prev-' + entry.id);
+      if (item) { item.classList.add('uploading'); document.getElementById('status-' + entry.id).textContent = '⏳'; }
+    }
+
+    // Build FormData
+    const fd = new FormData();
+    fd.append('category', selectedCat);
+    let i = 0;
+    for (const [, entry] of pendingFiles) {
+      fd.append('images', entry.file);
+      i++;
+      fill.style.width = Math.round((i / pendingFiles.size) * 60) + '%';
+      status.textContent = `Preparing ${i}/${pendingFiles.size}…`;
+    }
+
+    status.textContent = 'Sending to server…';
+    fill.style.width   = '70%';
+
+    try {
+      const res  = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      fill.style.width = '100%';
+
+      if (data.error) {
+        showResult('error', 'Upload failed: ' + data.error);
+        for (const [, entry] of pendingFiles) {
+          const item = document.getElementById('prev-' + entry.id);
+          if (item) { item.classList.remove('uploading'); item.classList.add('error'); document.getElementById('status-' + entry.id).textContent = '✕'; }
+        }
+      } else {
+        const saved   = data.saved || [];
+        const skipped = data.skipped || [];
+        for (const [, entry] of pendingFiles) {
+          const item = document.getElementById('prev-' + entry.id);
+          if (!item) continue;
+          item.classList.remove('uploading');
+          const isSaved = saved.includes(entry.file.name);
+          item.classList.add(isSaved ? 'done' : 'error');
+          document.getElementById('status-' + entry.id).textContent = isSaved ? '✓' : '✕';
+        }
+        let msg = `✓ Saved ${data.total_saved} image${data.total_saved !== 1 ? 's' : ''} to <strong>${selectedCat}</strong> folder.`;
+        if (skipped.length) msg += `<br>Skipped ${skipped.length} file(s) (unsupported format).`;
+        msg += `<br><br>Next step: <a href="/pipeline" style="color:var(--green)">Run the pipeline</a> to process them.`;
+        showResult('success', msg);
+        status.textContent = 'Done!';
+      }
+    } catch(e) {
+      fill.style.width = '100%';
+      showResult('error', 'Network error: ' + e);
+      status.textContent = 'Failed.';
+    }
+
+    btn.disabled    = false;
+    btn.textContent = '↑ Upload to BioField';
+  }
+
+  function showResult(type, msg) {
+    const box = document.getElementById('resultBox');
+    box.className = 'upload-result-box ' + type;
+    box.innerHTML = msg;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+{% endblock %}
