@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<h3>Stats</h3>
+<ul>
+  <li>Total: {{ stats.total }}</li>
+  <li>With GPS: {{ stats.with_gps }}</li>
+</ul>
+
+<h3>Recent Uploads</h3>
+<table border="1" cellpadding="8">
+  <tr>
+    <th>ID</th>
+    <th>Category</th>
+    <th>Image</th>
+    <th>Status</th>
+    <th>Date</th>
+  </tr>
+
+  {% for obs in observations %}
+  <tr>
+    <td>{{ obs.id }}</td>
+    <td>{{ obs.category }}</td>
+    <td>
+      {% if obs.cloudinary_url %}
+        <img src="{{ obs.cloudinary_url }}" width="80">
+      {% endif %}
+    </td>
+    <td>{{ obs.processing_status }}</td>
+    <td>{{ obs.created_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

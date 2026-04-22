@@ -9,7 +9,6 @@ Storage:
 No local files required. Works on Render, Railway, Fly.io, etc.
 """
 
-
 from __future__ import annotations
 
 import csv
@@ -56,19 +55,27 @@ CATEGORIES = {
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 
 # ── Cloudinary ─────────────────────────────────────────────────────────────────
+# Use .get() so the app doesn't crash at startup when .env is missing.
+# A helpful error is shown at runtime instead of a silent 404 for all routes.
 
 cloudinary.config(
-    cloud_name = os.environ["CLOUDINARY_CLOUD_NAME"],
-    api_key    = os.environ["CLOUDINARY_API_KEY"],
-    api_secret = os.environ["CLOUDINARY_API_SECRET"],
+    cloud_name = os.environ.get("CLOUDINARY_CLOUD_NAME", ""),
+    api_key    = os.environ.get("CLOUDINARY_API_KEY",    ""),
+    api_secret = os.environ.get("CLOUDINARY_API_SECRET", ""),
     secure     = True,
 )
 
 # ── PostgreSQL ─────────────────────────────────────────────────────────────────
 
 def get_db():
-    """Return a new psycopg2 connection. Use as a context manager."""
-    return psycopg2.connect(os.environ["DATABASE_URL"], sslmode="require")
+    """Return a new psycopg2 connection."""
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Add it to your .env file "
+            "or Render environment variables."
+        )
+    return psycopg2.connect(db_url, sslmode="require")
 
 
 def init_db():
@@ -341,6 +348,12 @@ def pipeline():
     return render_template("pipeline.html", stats=get_stats(), api_key_set=api_key_set)
 
 
+@app.route("/manage")
+def manage():
+    """Database management panel."""
+    return render_template("manage.html")
+
+
 # ── Data API ───────────────────────────────────────────────────────────────────
 
 @app.route("/api/stats")
@@ -352,8 +365,27 @@ def api_stats():
 def api_analytics():
     return jsonify(get_analytics_data())
 
+@app.route("/admin")
+def admin():
+    key = request.args.get("key")
+
+    if key != os.environ.get("ADMIN_KEY", "1234"):
+        return "Unauthorized", 403
+
+    stats = get_stats()
+    recent = get_recent_observations(20)
+
+    return render_template("admin.html", stats=stats, observations=recent)
 
 # ── Export API ─────────────────────────────────────────────────────────────────
+#an API for delete 
+@app.route("/api/delete/<int:id>", methods=["DELETE"])
+def delete_item(id):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM observations WHERE id = %s", (id,))
+        conn.commit()
+    return jsonify({"status": "deleted"})
 
 @app.route("/api/geojson")
 def api_geojson():
@@ -489,6 +521,87 @@ def api_image_url(obs_id: int):
     if not row or not row[0]:
         return "Not found", 404
     return jsonify({"url": row[0]})
+
+
+
+# ── DB Management API ──────────────────────────────────────────────────────────
+
+@app.route("/api/db-stats")
+def api_db_stats():
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM observations")
+            total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM observations WHERE processing_status='SUCCESS'")
+            success = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM observations WHERE processing_status='PENDING'")
+            pending = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM observations WHERE processing_status='AI_FAILED'")
+            failed = cur.fetchone()[0]
+    return jsonify({"total": total, "success": success, "pending": pending, "failed": failed})
+
+
+@app.route("/api/db-records")
+def api_db_records():
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, category, picture_name, cloudinary_url,
+                       common_name, species_name, date, processing_status
+                FROM observations ORDER BY id DESC
+            """)
+            rows = [dict(r) for r in cur.fetchall()]
+    return jsonify({"records": rows})
+
+
+@app.route("/api/db-delete/<int:obs_id>", methods=["DELETE"])
+def api_db_delete_one(obs_id: int):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM observations WHERE id = %s", (obs_id,))
+            deleted = cur.rowcount
+        conn.commit()
+    if deleted:
+        return jsonify({"message": f"Record #{obs_id} deleted."})
+    return jsonify({"message": "Record not found."}), 404
+
+
+@app.route("/api/db-delete-status/<status>", methods=["POST"])
+def api_db_delete_by_status(status: str):
+    allowed = {"AI_FAILED", "PENDING", "DOWNLOAD_ERROR", "NO_URL", "EXIF_ERROR"}
+    if status not in allowed:
+        return jsonify({"message": f"Status not allowed."}), 400
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM observations WHERE processing_status = %s", (status,))
+            deleted = cur.rowcount
+        conn.commit()
+    return jsonify({"message": f"Deleted {deleted} records with status {status}."})
+
+
+@app.route("/api/db-retry-failed", methods=["POST"])
+def api_db_retry_failed():
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE observations
+                SET processing_status='PENDING', common_name=NULL,
+                    scientific_name=NULL, species_name=NULL
+                WHERE processing_status='AI_FAILED'
+            """)
+            updated = cur.rowcount
+        conn.commit()
+    return jsonify({"message": f"Reset {updated} AI_FAILED records to PENDING."})
+
+
+@app.route("/api/db-reset", methods=["POST"])
+def api_db_reset():
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM observations")
+            deleted = cur.rowcount
+        conn.commit()
+    return jsonify({"message": f"Database reset — {deleted} records deleted."})
 
 
 # ── Upload API — saves to Cloudinary, inserts row in PostgreSQL ────────────────

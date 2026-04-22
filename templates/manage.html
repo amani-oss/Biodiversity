@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+{% block title %}Database Manager{% endblock %}
+{% block page_title %}Database Manager{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .manage-header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; flex-wrap: wrap;
+    gap: 12px; margin-bottom: 24px;
+  }
+
+  /* ── Stat strip ── */
+  .db-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+  .db-stat {
+    background: var(--bg-card); border: 1px solid var(--border-dim);
+    border-radius: var(--radius-lg); padding: 14px 16px;
+    animation: fadeUp 0.3s ease both;
+  }
+  .db-stat-val  { font-family: var(--font-serif); font-size: 1.8rem; font-weight: 700; color: var(--text-0); line-height: 1; }
+  .db-stat-lbl  { font-size: 0.65rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+
+  /* ── Action cards ── */
+  .action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-bottom: 24px;
+  }
+  .action-card {
+    background: var(--bg-card); border: 1px solid var(--border-dim);
+    border-radius: var(--radius-lg); padding: 20px; overflow: hidden;
+  }
+  .action-card-title {
+    font-family: var(--font-serif); font-size: 1rem; color: var(--text-0);
+    margin-bottom: 6px;
+  }
+  .action-card-desc { font-size: 0.72rem; color: var(--text-2); margin-bottom: 16px; line-height: 1.5; }
+
+  /* ── Delete zone ── */
+  .danger-zone {
+    background: #f8717111; border: 1px solid #f8717133;
+    border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px;
+  }
+  .danger-title {
+    font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--red); margin-bottom: 14px;
+  }
+  .danger-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ── Records table ── */
+  .rec-thumb {
+    width: 40px; height: 40px; object-fit: cover;
+    border-radius: var(--radius-sm); border: 1px solid var(--border-dim);
+    display: block;
+  }
+  .del-btn {
+    background: none; border: 1px solid #f8717144; color: var(--red);
+    border-radius: var(--radius-sm); padding: 4px 10px; font-size: 0.68rem;
+    cursor: pointer; transition: all var(--transition); min-height: 32px;
+    font-family: var(--font-mono); touch-action: manipulation;
+  }
+  .del-btn:hover { background: #f8717122; border-color: var(--red); }
+
+  /* ── Confirm modal ── */
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    z-index: 1000; display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .confirm-overlay.open { display: flex; }
+  .confirm-box {
+    background: var(--bg-card); border: 1px solid var(--border-dim);
+    border-radius: var(--radius-lg); padding: 28px; width: 100%; max-width: 400px;
+    text-align: center;
+  }
+  .confirm-icon  { font-size: 2.5rem; margin-bottom: 12px; display: block; }
+  .confirm-title { font-family: var(--font-serif); font-size: 1.1rem; color: var(--text-0); margin-bottom: 8px; }
+  .confirm-msg   { font-size: 0.78rem; color: var(--text-2); margin-bottom: 20px; line-height: 1.5; }
+  .confirm-btns  { display: flex; gap: 10px; justify-content: center; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: calc(80px + env(safe-area-inset-bottom,0px));
+    left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg-card); border: 1px solid var(--border-dim);
+    border-radius: var(--radius-md); padding: 10px 20px;
+    font-size: 0.78rem; color: var(--text-0); opacity: 0;
+    transition: all 0.3s ease; z-index: 2000; white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: #4ade8055; color: var(--green); }
+  .toast.error   { border-color: #f8717155; color: var(--red); }
+
+  /* Cat filter pills */
+  .cat-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .cat-pill {
+    padding: 6px 14px; border-radius: 20px; font-size: 0.72rem;
+    border: 1px solid var(--border-dim); color: var(--text-1);
+    background: transparent; cursor: pointer; transition: all var(--transition);
+    min-height: 36px; touch-action: manipulation;
+  }
+  .cat-pill:hover  { border-color: var(--border); background: var(--bg-2); }
+  .cat-pill.active { color: var(--green); background: var(--green-dim); border-color: #4ade8044; }
+
+  @media (max-width: 600px) {
+    .action-grid { grid-template-columns: 1fr; }
+    .danger-actions { flex-direction: column; }
+    .danger-actions .btn { width: 100%; justify-content: center; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="manage-header">
+  <div>
+    <h2 class="section-heading">Database Manager</h2>
+    <p class="section-sub" style="margin-bottom:0">View, delete, and reset observations in PostgreSQL</p>
+  </div>
+  <a href="/observations" class="btn btn-ghost">← Back to Observations</a>
+</div>
+
+<!-- Stats -->
+<div class="db-stats" id="statsStrip">
+  <div class="db-stat" style="animation-delay:0ms">
+    <div class="db-stat-val" id="statTotal">—</div>
+    <div class="db-stat-lbl">Total rows</div>
+  </div>
+  <div class="db-stat" style="animation-delay:60ms">
+    <div class="db-stat-val text-green" id="statSuccess">—</div>
+    <div class="db-stat-lbl">Processed</div>
+  </div>
+  <div class="db-stat" style="animation-delay:120ms">
+    <div class="db-stat-val text-amber" id="statPending">—</div>
+    <div class="db-stat-lbl">Pending</div>
+  </div>
+  <div class="db-stat" style="animation-delay:180ms">
+    <div class="db-stat-val text-purple" id="statFailed">—</div>
+    <div class="db-stat-lbl">AI Failed</div>
+  </div>
+</div>
+
+<!-- Action Cards -->
+<div class="action-grid">
+  <div class="action-card">
+    <div class="action-card-title">♻️ Re-process Failed</div>
+    <div class="action-card-desc">
+      Reset all <strong>AI_FAILED</strong> observations back to PENDING so the pipeline will retry them.
+    </div>
+    <button class="btn btn-amber" onclick="confirmAction('retry')">⟳ Retry AI_FAILED</button>
+  </div>
+
+  <div class="action-card">
+    <div class="action-card-title">📥 Export Backup</div>
+    <div class="action-card-desc">
+      Download all observations as a ZIP archive containing one CSV per category.
+    </div>
+    <a href="/api/backup" class="btn btn-ghost">💾 Download ZIP</a>
+  </div>
+</div>
+
+<!-- Danger Zone -->
+<div class="danger-zone">
+  <div class="danger-title">⚠ Danger zone — these actions cannot be undone</div>
+  <div class="danger-actions">
+    <button class="btn" style="background:#f8717122;color:var(--red);border-color:#f8717144"
+            onclick="confirmAction('delete-failed')">
+      🗑 Delete all AI_FAILED
+    </button>
+    <button class="btn" style="background:#f8717122;color:var(--red);border-color:#f8717144"
+            onclick="confirmAction('delete-pending')">
+      🗑 Delete all PENDING
+    </button>
+    <button class="btn" style="background:#f8717133;color:var(--red);border-color:var(--red)"
+            onclick="confirmAction('reset-all')">
+      💥 Reset entire database
+    </button>
+  </div>
+</div>
+
+<!-- Per-record table -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">All Records</span>
+    <span id="recordCount" style="font-size:0.68rem;color:var(--text-3)"></span>
+  </div>
+  <div class="card-body" style="padding-bottom:8px">
+    <!-- Category filter -->
+    <div class="cat-pills">
+      <button class="cat-pill active" data-cat="all" onclick="filterCat(this)">All</button>
+      <button class="cat-pill" data-cat="insect" onclick="filterCat(this)">🪲 Insects</button>
+      <button class="cat-pill" data-cat="flora"  onclick="filterCat(this)">🌿 Flora</button>
+      <button class="cat-pill" data-cat="fungus" onclick="filterCat(this)">🍄 Fungi</button>
+      <button class="cat-pill" data-cat="PENDING"    onclick="filterStatus(this)">⏳ Pending</button>
+      <button class="cat-pill" data-cat="AI_FAILED"  onclick="filterStatus(this)">❌ AI Failed</button>
+      <button class="cat-pill" data-cat="SUCCESS"    onclick="filterStatus(this)">✅ Success</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="recordTable">
+      <thead>
+        <tr>
+          <th>Photo</th>
+          <th>Cat.</th>
+          <th>Filename</th>
+          <th>Species</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="recordBody">
+        <tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:40px">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div class="confirm-overlay" id="confirmModal">
+  <div class="confirm-box">
+    <span class="confirm-icon" id="confirmIcon">⚠️</span>
+    <div class="confirm-title" id="confirmTitle">Are you sure?</div>
+    <div class="confirm-msg"   id="confirmMsg">This action cannot be undone.</div>
+    <div class="confirm-btns">
+      <button class="btn" style="background:#f8717122;color:var(--red);border-color:#f8717144;flex:1"
+              id="confirmOkBtn" onclick="executeAction()">Confirm</button>
+      <button class="btn btn-ghost" onclick="closeConfirm()" style="flex:1">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let pendingAction = null;
+let currentCatFilter    = 'all';
+let currentStatusFilter = null;
+let allRecords = [];
+
+// ── Load data ──────────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await fetch('/api/db-stats');
+    const d = await r.json();
+    document.getElementById('statTotal').textContent   = d.total   ?? '—';
+    document.getElementById('statSuccess').textContent = d.success ?? '—';
+    document.getElementById('statPending').textContent = d.pending ?? '—';
+    document.getElementById('statFailed').textContent  = d.failed  ?? '—';
+  } catch(e) { console.error(e); }
+}
+
+async function loadRecords() {
+  try {
+    const r = await fetch('/api/db-records');
+    const d = await r.json();
+    allRecords = d.records || [];
+    renderTable();
+  } catch(e) {
+    document.getElementById('recordBody').innerHTML =
+      '<tr><td colspan="7" style="color:var(--red);text-align:center;padding:30px">Failed to load records</td></tr>';
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function renderTable() {
+  let rows = allRecords;
+  if (currentCatFilter !== 'all') {
+    rows = rows.filter(r => r.category === currentCatFilter);
+  }
+  if (currentStatusFilter) {
+    rows = rows.filter(r => r.processing_status === currentStatusFilter);
+  }
+
+  document.getElementById('recordCount').textContent = `${rows.length} records`;
+
+  if (!rows.length) {
+    document.getElementById('recordBody').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:40px">No records match this filter</td></tr>';
+    return;
+  }
+
+  const CAT_ICON = { insect:'🪲', flora:'🌿', fungus:'🍄' };
+  const STATUS_COLOR = { SUCCESS:'var(--green)', PENDING:'var(--amber)', AI_FAILED:'var(--red)',
+                         DOWNLOAD_ERROR:'var(--red)', NO_URL:'var(--red)' };
+
+  document.getElementById('recordBody').innerHTML = rows.map(r => {
+    const thumb = r.cloudinary_url
+      ? r.cloudinary_url.replace('/upload/', '/upload/w_80,h_80,c_fill/')
+      : '';
+    const imgHtml = thumb
+      ? `<img src="${thumb}" class="rec-thumb" onerror="this.style.opacity='0.2'">`
+      : `<div style="width:40px;height:40px;background:var(--bg-2);border-radius:4px;
+                     display:flex;align-items:center;justify-content:center;font-size:1.2rem">
+           ${CAT_ICON[r.category]||'?'}
+         </div>`;
+    const stColor = STATUS_COLOR[r.processing_status] || 'var(--text-3)';
+    const species = r.common_name || r.species_name || '—';
+    return `
+      <tr data-id="${r.id}" class="obs-row">
+        <td>${imgHtml}</td>
+        <td><span class="badge badge-${r.category}">${CAT_ICON[r.category]||''} ${(r.category||'').charAt(0).toUpperCase()+(r.category||'').slice(1)}</span></td>
+        <td class="pic-name" title="${r.picture_name||''}">${(r.picture_name||'—').substring(0,22)}${(r.picture_name||'').length>22?'…':''}</td>
+        <td style="color:var(--text-0);font-weight:500">${species}</td>
+        <td style="color:var(--text-2);font-size:0.72rem">${r.date||'—'}</td>
+        <td><span style="font-size:0.65rem;color:${stColor}">${r.processing_status||'—'}</span></td>
+        <td><button class="del-btn" onclick="confirmDeleteOne(${r.id}, '${(r.picture_name||'').replace(/'/g,"\\'")}')">🗑 Delete</button></td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────────
+function filterCat(btn) {
+  currentStatusFilter = null;
+  currentCatFilter = btn.dataset.cat;
+  document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+function filterStatus(btn) {
+  currentCatFilter = 'all';
+  currentStatusFilter = btn.dataset.cat;
+  document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+// ── Confirm modal ──────────────────────────────────────────────────────────────
+const ACTIONS = {
+  'retry':          { icon:'♻️', title:'Retry AI_FAILED?',        msg:'All AI_FAILED observations will be reset to PENDING and retried next time you run the pipeline.' },
+  'delete-failed':  { icon:'🗑', title:'Delete all AI_FAILED?',   msg:'All observations with status AI_FAILED will be permanently removed from the database.' },
+  'delete-pending': { icon:'🗑', title:'Delete all PENDING?',     msg:'All unprocessed observations will be permanently removed from the database.' },
+  'reset-all':      { icon:'💥', title:'Reset ENTIRE database?',  msg:'⚠ This will delete ALL observations permanently. This cannot be undone.' },
+};
+
+function confirmAction(action) {
+  const cfg = ACTIONS[action];
+  if (!cfg) return;
+  pendingAction = { type: action };
+  document.getElementById('confirmIcon').textContent  = cfg.icon;
+  document.getElementById('confirmTitle').textContent = cfg.title;
+  document.getElementById('confirmMsg').textContent   = cfg.msg;
+  document.getElementById('confirmModal').classList.add('open');
+}
+
+function confirmDeleteOne(id, name) {
+  pendingAction = { type: 'delete-one', id };
+  document.getElementById('confirmIcon').textContent  = '🗑';
+  document.getElementById('confirmTitle').textContent = 'Delete this record?';
+  document.getElementById('confirmMsg').textContent   = `"${name}" will be permanently removed from the database.`;
+  document.getElementById('confirmModal').classList.add('open');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.remove('open');
+  pendingAction = null;
+}
+
+// ── Execute ────────────────────────────────────────────────────────────────────
+async function executeAction() {
+  if (!pendingAction) return;
+  closeConfirm();
+
+  const { type, id } = pendingAction;
+  let url, method = 'POST';
+
+  if      (type === 'delete-one')     { url = `/api/db-delete/${id}`;     method = 'DELETE'; }
+  else if (type === 'delete-failed')  { url = '/api/db-delete-status/AI_FAILED'; }
+  else if (type === 'delete-pending') { url = '/api/db-delete-status/PENDING'; }
+  else if (type === 'retry')          { url = '/api/db-retry-failed'; }
+  else if (type === 'reset-all')      { url = '/api/db-reset'; }
+  else return;
+
+  try {
+    const r = await fetch(url, { method });
+    const d = await r.json();
+    if (r.ok) {
+      showToast(d.message || 'Done', 'success');
+      await loadStats();
+      await loadRecords();
+    } else {
+      showToast(d.message || 'Error', 'error');
+    }
+  } catch(e) {
+    showToast('Network error: ' + e, 'error');
+  }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+document.getElementById('confirmModal').addEventListener('click', e => {
+  if (e.target.id === 'confirmModal') closeConfirm();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeConfirm(); });
+
+loadStats();
+loadRecords();
+</script>
+{% endblock %}
